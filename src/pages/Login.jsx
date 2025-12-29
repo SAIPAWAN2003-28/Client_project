@@ -1,11 +1,15 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Users, Briefcase } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, ArrowLeft } from 'lucide-react';
 
 const Login = () => {
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
     if (user) {
@@ -14,12 +18,29 @@ const Login = () => {
         member: '/member',
         client: '/client'
       };
-      navigate(paths[user.role]);
+      // Redirect to role-specific dashboard, fallback to home if role unknown
+      navigate(paths[user.role] || '/');
     }
   }, [user, navigate]);
 
-  const handleLogin = (role) => {
-    login(role);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await login(email, password);
+      // Navigation happens in useEffect when user state updates
+    } catch (err) {
+      console.error(err);
+      // Check for specific Supabase auth error regarding email confirmation
+      if (err.message && (err.message.includes('Email not confirmed') || err.message.includes('Email link is invalid'))) {
+        setError('Please check your email to confirm your account before logging in.');
+      } else {
+        setError(err.message || 'Invalid email or password');
+      }
+      setLoading(false);
+    }
   };
 
   return (
@@ -29,6 +50,9 @@ const Login = () => {
         {/* Left Side - Branding */}
         <div className="md:w-1/2 bg-blue-600 p-12 text-white flex flex-col justify-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+          <Link to="/" className="absolute top-8 left-8 flex items-center gap-2 text-blue-100 hover:text-white transition-colors z-20">
+            <ArrowLeft size={18} /> Back to Home
+          </Link>
           <div className="relative z-10">
             <h1 className="text-4xl font-bold mb-4">Nexus Platform</h1>
             <p className="text-blue-100 text-lg mb-8">
@@ -42,50 +66,71 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Right Side - Login Options */}
+        {/* Right Side - Login Form */}
         <div className="md:w-1/2 p-12 flex flex-col justify-center">
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome Back</h2>
-          <p className="text-slate-500 mb-8">Select a role to simulate login:</p>
+          <p className="text-slate-500 mb-8">Please sign in to continue</p>
 
-          <div className="space-y-4">
-            <button
-              onClick={() => handleLogin('admin')}
-              className="w-full group flex items-center p-4 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Shield size={24} />
+          <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle size={16} />
+                {error}
               </div>
-              <div className="ml-4">
-                <h3 className="font-semibold text-slate-800">Admin Portal</h3>
-                <p className="text-sm text-slate-500">Manage users, settings & analytics</p>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="email" 
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="name@company.com"
+                />
               </div>
-            </button>
+            </div>
 
-            <button
-              onClick={() => handleLogin('member')}
-              className="w-full group flex items-center p-4 border border-slate-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Users size={24} />
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-slate-700">Password</label>
+                <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                  Forgot password?
+                </Link>
               </div>
-              <div className="ml-4">
-                <h3 className="font-semibold text-slate-800">Team Member</h3>
-                <p className="text-sm text-slate-500">Access projects, tasks & calendar</p>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="password" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="••••••••"
+                />
               </div>
-            </button>
+            </div>
 
-            <button
-              onClick={() => handleLogin('client')}
-              className="w-full group flex items-center p-4 border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all duration-200 text-left"
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Briefcase size={24} />
-              </div>
-              <div className="ml-4">
-                <h3 className="font-semibold text-slate-800">Client Portal</h3>
-                <p className="text-sm text-slate-500">View documents & chat with team</p>
-              </div>
+              {loading ? 'Signing in...' : 'Sign In'}
+              {!loading && <ArrowRight size={20} />}
             </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-500">
+              Don't have an account?{' '}
+              <Link to="/signup" className="text-blue-600 font-semibold hover:underline">
+                Sign Up
+              </Link>
+            </p>
           </div>
         </div>
       </div>

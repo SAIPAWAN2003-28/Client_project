@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, Users, FileText, Settings, 
   Calendar, MessageSquare, Folder, PieChart, 
-  LogOut, Bell, Briefcase
+  LogOut, Bell, Briefcase, UserCircle
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -32,6 +32,7 @@ const Sidebar = () => {
         return [
           { icon: FileText, label: 'Documents', path: '/client' },
           { icon: MessageSquare, label: 'Messages', path: '/client/messages' },
+          { icon: UserCircle, label: 'My Profile', path: '/client/profile' },
         ];
       default:
         return [];
@@ -41,7 +42,7 @@ const Sidebar = () => {
   const navItems = getNavItems(user?.role);
 
   return (
-    <div className="h-screen w-64 bg-slate-900 text-white flex flex-col fixed left-0 top-0 border-r border-slate-800">
+    <div className="h-screen w-64 bg-slate-900 text-white flex flex-col fixed left-0 top-0 border-r border-slate-800 z-50">
       <div className="p-6 border-b border-slate-800">
         <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
           Nexus Platform
@@ -72,7 +73,7 @@ const Sidebar = () => {
 
       <div className="p-4 border-t border-slate-800">
         <div className="flex items-center gap-3 mb-4 px-2">
-          <img src={user?.avatar} alt="Profile" className="w-8 h-8 rounded-full ring-2 ring-slate-700" />
+          <img src={user?.avatar} alt="Profile" className="w-8 h-8 rounded-full ring-2 ring-slate-700 object-cover" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.name}</p>
             <p className="text-xs text-slate-500 truncate">{user?.email}</p>

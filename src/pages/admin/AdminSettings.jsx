@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Save, Bell, Lock, Globe, Mail, Shield } from 'lucide-react';
+import { Save, Bell, Lock, Globe, Mail, Shield, CheckCircle } from 'lucide-react';
 
 const AdminSettings = () => {
   const [activeTab, setActiveTab] = useState('general');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const tabs = [
     { id: 'general', label: 'General', icon: Globe },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Lock },
   ];
+
+  const handleSave = () => {
+    // Simulate API call
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
 
   return (
     <div className="space-y-6">
@@ -17,9 +24,12 @@ const AdminSettings = () => {
           <h1 className="text-2xl font-bold text-slate-800">System Settings</h1>
           <p className="text-slate-500 mt-1">Manage platform configurations</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-          <Save size={18} />
-          Save Changes
+        <button 
+          onClick={handleSave}
+          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          {showSuccess ? <CheckCircle size={18} /> : <Save size={18} />}
+          {showSuccess ? 'Saved!' : 'Save Changes'}
         </button>
       </div>
 

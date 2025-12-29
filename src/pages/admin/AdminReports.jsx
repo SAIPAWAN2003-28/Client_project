@@ -4,6 +4,8 @@ import {
   PieChart, Pie, Cell, Legend 
 } from 'recharts';
 import { Download, Calendar } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const AdminReports = () => {
   const performanceData = [
@@ -29,6 +31,72 @@ const AdminReports = () => {
     { name: 'API Integration', progress: 90 },
   ];
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text("Nexus Platform - System Report", 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Section 1: Performance Data
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Task Performance (Last 6 Months)", 14, 45);
+
+    const performanceTableData = performanceData.map(row => [row.name, row.completed, row.active]);
+    
+    autoTable(doc, {
+      startY: 50,
+      head: [['Month', 'Completed Tasks', 'Active Tasks']],
+      body: performanceTableData,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    // Section 2: Project Status
+    let finalY = doc.lastAutoTable.finalY + 20;
+    doc.text("Project Progress Status", 14, finalY);
+
+    const projectTableData = projectStatus.map(row => [row.name, `${row.progress}%`]);
+    
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [['Project Name', 'Progress']],
+      body: projectTableData,
+      theme: 'striped',
+      headStyles: { fillColor: [16, 185, 129] }
+    });
+
+    // Section 3: User Distribution
+    finalY = doc.lastAutoTable.finalY + 20;
+    doc.text("User Role Distribution", 14, finalY);
+    
+    const roleTableData = roleDistribution.map(row => [row.name, row.value]);
+    
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [['Role', 'Count']],
+      body: roleTableData,
+      theme: 'plain',
+    });
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.text('Confidential - Internal Use Only', 14, doc.internal.pageSize.height - 10);
+      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 10);
+    }
+
+    doc.save("nexus-report.pdf");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -41,7 +109,10 @@ const AdminReports = () => {
             <Calendar size={18} />
             Last 6 Months
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
             <Download size={18} />
             Export PDF
           </button>

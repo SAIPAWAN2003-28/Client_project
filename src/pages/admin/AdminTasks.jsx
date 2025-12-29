@@ -1,42 +1,119 @@
-import React, { useState } from 'react';
-import { faker } from '@faker-js/faker';
-import { Plus, Calendar, CheckCircle2, AlertCircle, Clock, MoreVertical, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Calendar, CheckCircle2, AlertCircle, Clock, Search, Briefcase, Edit2, Trash2 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
+import { supabase } from '../../lib/supabase';
 
 const AdminTasks = () => {
-  const [tasks, setTasks] = useState(() => 
-    Array.from({ length: 6 }).map(() => ({
-      id: faker.string.uuid(),
-      title: faker.company.catchPhrase(),
-      assignee: faker.person.fullName(),
-      assigneeAvatar: faker.image.avatar(),
-      dueDate: faker.date.future().toLocaleDateString(),
-      priority: faker.helpers.arrayElement(['High', 'Medium', 'Low']),
-      status: faker.helpers.arrayElement(['To Do', 'In Progress', 'Done']),
-      project: faker.commerce.productName()
-    }))
-  );
-
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTask, setNewTask] = useState({
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentTask, setCurrentTask] = useState(null);
+
+  const initialFormState = {
     title: '',
     assignee: '',
-    dueDate: '',
+    due_date: '',
     priority: 'Medium',
-    project: ''
-  });
+    project: '',
+    status: 'To Do'
+  };
 
-  const handleAddTask = (e) => {
+  const [formData, setFormData] = useState(initialFormState);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setTasks(data || []);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  // Filter tasks based on search query
+  const filteredTasks = tasks.filter(task => 
+    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (task.project && task.project.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (task.assignee && task.assignee.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const openCreateModal = () => {
+    setIsEditMode(false);
+    setFormData(initialFormState);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (task) => {
+    setIsEditMode(true);
+    setCurrentTask(task);
+    setFormData({
+      title: task.title,
+      assignee: task.assignee || '', // Handle missing assignee in existing data
+      due_date: task.due_date,
+      priority: task.priority,
+      project: task.project || '', // Handle missing project in existing data
+      status: task.status
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const task = {
-      id: faker.string.uuid(),
-      ...newTask,
-      assigneeAvatar: faker.image.avatar(),
-      status: 'To Do'
-    };
-    setTasks([task, ...tasks]);
-    setIsModalOpen(false);
-    setNewTask({ title: '', assignee: '', dueDate: '', priority: 'Medium', project: '' });
+    
+    // Exclude 'assignee' and 'project' from payload as they don't exist in the 'tasks' table schema
+    // We keep them in state for the UI, but don't send them to the DB
+    const { assignee, project, ...taskPayload } = formData;
+
+    try {
+      if (isEditMode && currentTask) {
+        const { error } = await supabase
+          .from('tasks')
+          .update(taskPayload)
+          .eq('id', currentTask.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('tasks')
+          .insert([taskPayload]);
+        if (error) throw error;
+      }
+      
+      await fetchTasks();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving task:', error);
+      alert('Failed to save task');
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .delete()
+          .eq('id', taskId);
+        
+        if (error) throw error;
+        setTasks(tasks.filter(t => t.id !== taskId));
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        alert('Failed to delete task');
+      }
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -56,6 +133,8 @@ const AdminTasks = () => {
     }
   };
 
+  if (loading) return <div className="p-8 text-center text-slate-500">Loading tasks...</div>;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -64,7 +143,7 @@ const AdminTasks = () => {
           <p className="text-slate-500 mt-1">Assign and track team tasks</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
         >
           <Plus size={18} />
@@ -78,57 +157,79 @@ const AdminTasks = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
               type="text" 
-              placeholder="Search tasks..." 
+              placeholder="Search tasks, projects, or assignees..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
 
         <div className="divide-y divide-slate-200">
-          {tasks.map((task) => (
-            <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-4">
-              <div className="pt-1">{getStatusIcon(task.status)}</div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-800 truncate">{task.title}</h3>
-                <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <Briefcase size={14} /> {task.project}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar size={14} /> {task.dueDate}
-                  </span>
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => (
+              <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-4 group">
+                <div className="pt-1">{getStatusIcon(task.status)}</div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-slate-800 truncate">{task.title}</h3>
+                  <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <Briefcase size={14} /> {formData.project || 'No Project'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar size={14} /> {task.due_date}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                  {task.priority}
-                </span>
                 
-                <div className="flex items-center gap-2 text-sm text-slate-600 hidden md:flex">
-                  <img src={task.assigneeAvatar} alt="" className="w-6 h-6 rounded-full" />
-                  <span>{task.assignee}</span>
-                </div>
+                <div className="flex items-center gap-4">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                    {task.priority}
+                  </span>
+                  
+                  <div className="flex items-center gap-2 text-sm text-slate-600 hidden md:flex">
+                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                      {/* Since we don't save assignee, this will likely be empty for new tasks, but safe to keep for UI logic */}
+                      {formData.assignee ? formData.assignee.charAt(0) : '?'}
+                    </div>
+                    <span>{formData.assignee || 'Unassigned'}</span>
+                  </div>
 
-                <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
-                  <MoreVertical size={18} />
-                </button>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => openEditModal(task)}
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-slate-500">
+              No tasks found matching your search.
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Task">
-        <form onSubmit={handleAddTask} className="space-y-4">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditMode ? "Edit Task" : "Add New Task"}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Task Title</label>
             <input 
               required
               type="text" 
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={newTask.title}
-              onChange={(e) => setNewTask({...newTask, title: e.target.value})}
+              value={formData.title}
+              onChange={(e) => setFormData({...formData, title: e.target.value})}
               placeholder="e.g. Update Homepage Design"
             />
           </div>
@@ -138,20 +239,19 @@ const AdminTasks = () => {
               required
               type="text" 
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={newTask.project}
-              onChange={(e) => setNewTask({...newTask, project: e.target.value})}
+              value={formData.project}
+              onChange={(e) => setFormData({...formData, project: e.target.value})}
               placeholder="e.g. Website Redesign"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Assignee</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Assignee (Display Only)</label>
               <input 
-                required
                 type="text" 
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={newTask.assignee}
-                onChange={(e) => setNewTask({...newTask, assignee: e.target.value})}
+                value={formData.assignee}
+                onChange={(e) => setFormData({...formData, assignee: e.target.value})}
                 placeholder="Name"
               />
             </div>
@@ -161,27 +261,35 @@ const AdminTasks = () => {
                 required
                 type="date" 
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={newTask.dueDate}
-                onChange={(e) => setNewTask({...newTask, dueDate: e.target.value})}
+                value={formData.due_date}
+                onChange={(e) => setFormData({...formData, due_date: e.target.value})}
               />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
-            <div className="flex gap-4">
-              {['Low', 'Medium', 'High'].map((p) => (
-                <label key={p} className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="priority"
-                    value={p}
-                    checked={newTask.priority === p}
-                    onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-700">{p}</span>
-                </label>
-              ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
+              <select 
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.priority}
+                onChange={(e) => setFormData({...formData, priority: e.target.value})}
+              >
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+              <select 
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value})}
+              >
+                <option value="To Do">To Do</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Done">Done</option>
+              </select>
             </div>
           </div>
           <div className="pt-4 flex justify-end gap-3">
@@ -196,7 +304,7 @@ const AdminTasks = () => {
               type="submit" 
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
             >
-              Add Task
+              {isEditMode ? 'Save Changes' : 'Add Task'}
             </button>
           </div>
         </form>
